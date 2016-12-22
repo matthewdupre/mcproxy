@@ -61,8 +61,17 @@ bool mroute_socket::create_raw_ipv4_socket()
         HC_LOG_DEBUG("get socket discriptor number: " << m_sock);
         m_addrFamily = AF_INET;
         m_own_socket = true;
-        return true;
     }
+
+    // Oops - looks like it's this socket that gets used, not the other one. (mrt, not mc).
+    int option = 1;
+    int rc = setsockopt(m_sock, SOL_IP, IP_PKTINFO, &option, sizeof(option));
+    if (rc == -1) {
+        HC_LOG_ERROR("failed to set ip_pktinfo(on/off)! Error: " << strerror(errno) << " errno: " << errno);
+        return false;
+    }
+
+    return true;
 
 }
 

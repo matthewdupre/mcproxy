@@ -93,7 +93,7 @@ int igmp_receiver::get_ctrl_min_size()
 {
     HC_LOG_TRACE("");
     //useless
-    return 0;
+    return 1000; // Trying this to get CMSG through
 }
 
 void igmp_receiver::analyse_packet(struct msghdr* msg, int)
@@ -167,7 +167,7 @@ void igmp_receiver::analyse_packet(struct msghdr* msg, int)
                 HC_LOG_DEBUG("\tleave group received");
                 m_proxy_instance->add_msg(std::make_shared<group_record_msg>(if_index, CHANGE_TO_INCLUDE_MODE, gaddr, source_list<source>(), IGMPv2));
             } else {
-                HC_LOG_ERROR("unkown igmp type: " << igmp_hdr->igmp_type); 
+                HC_LOG_ERROR("unkown igmp type: " << igmp_hdr->igmp_type);
             }
         } else if (igmp_hdr->igmp_type == IGMP_V3_MEMBERSHIP_REPORT) {
             HC_LOG_DEBUG("IGMP_V3_MEMBERSHIP_REPORT received");
@@ -182,8 +182,22 @@ void igmp_receiver::analyse_packet(struct msghdr* msg, int)
             HC_LOG_DEBUG("\tsaddr: " << saddr);
 
             if ((if_index = m_interfaces->get_if_index(saddr)) == 0) {
-                HC_LOG_DEBUG("no if_index found");
-                return;
+                // TODO: Refactor properly.
+                // Also should add IGMPv2 version at some point.
+                // Couldn't find the source address - check the incoming if directly.
+                struct cmsghdr *cmsg;
+                HC_LOG_DEBUG("no if_index found - checking PKTINFO instead");
+                for (cmsg = CMSG_FIRSTHDR(msg); cmsg != nullptr; cmsg = CMSG_NXTHDR(msg, cmsg)) {
+                    HC_LOG_DEBUG("CMSG header " << cmsg->cmsg_level << ", " << cmsg->cmsg_type);
+                    if (cmsg->cmsg_level == IPPROTO_IP && cmsg->cmsg_type == IP_PKTINFO) {
+                        struct in_pktinfo *pktinfo = reinterpret_cast<struct in_pktinfo *>(CMSG_DATA(cmsg));
+                        if_index = pktinfo->ipi_ifindex;
+                    }
+                }
+                if (if_index == 0) {
+                    HC_LOG_WARN("Unable to identify interface");
+                    return;
+                }
             }
             HC_LOG_DEBUG("\treceived on interface:" << interfaces::get_if_name(if_index));
 

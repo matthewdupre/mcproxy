@@ -118,9 +118,15 @@ void receiver::worker_thread()
             continue; //on timeout
         }
 
+        HC_LOG_DEBUG("Control size: " << msg.msg_controllen);
+
         m_data_lock.lock();
         analyse_packet(&msg, info_size);
         m_data_lock.unlock();
+
+        // Think I need to refresh the control structure (perhaps not the pointer)
+        msg.msg_control = ctrl.get();
+        msg.msg_controllen = get_ctrl_min_size(); //sizeof(ctrl);
     }
 }
 

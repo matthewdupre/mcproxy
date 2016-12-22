@@ -98,8 +98,17 @@ bool mc_socket::create_udp_ipv4_socket()
         HC_LOG_DEBUG("get socket discriptor number: " << m_sock);
         m_addrFamily = AF_INET;
         m_own_socket = true;
-        return true;
     }
+
+    int option = 1;
+    int rc = setsockopt(m_sock, SOL_IP, IP_PKTINFO, &option, sizeof(option));
+    if (rc == -1) {
+        HC_LOG_ERROR("failed to set ip_pktinfo(on/off)! Error: " << strerror(errno) << " errno: " << errno);
+        return false;
+    }
+
+    return true;
+
 }
 
 bool mc_socket::create_udp_ipv6_socket()
@@ -212,13 +221,14 @@ bool mc_socket::set_multicast_all(bool enable) const
     int option = enable;
 
     if (m_addrFamily == AF_INET) {
+        // TODO: Write this its own function, put it in the right place etc.
         level = IPPROTO_IP;
         mall_arg = IP_MULTICAST_ALL;
     } else if (m_addrFamily == AF_INET6) {
         level = IPPROTO_IPV6;
         //mall_arg = IP6_MULTICAST_ALL;
         HC_LOG_ERROR("option for IPv6 not available");
-        return true; 
+        return true;
     } else {
         HC_LOG_ERROR("wrong address family");
         return false;
@@ -454,7 +464,8 @@ bool mc_socket::choose_if(uint32_t if_index) const
     }
 
     if (m_addrFamily == AF_INET) {
-        struct in_addr inaddr;
+// Address might not exist - need to use the ip_mreqn instead.
+/*        struct in_addr inaddr;
         struct ifreq ifreq;
 
         if ( if_index > 0) {
@@ -473,7 +484,12 @@ bool mc_socket::choose_if(uint32_t if_index) const
             inaddr.s_addr = htonl(INADDR_ANY);
         }
 
-        int rc = setsockopt(m_sock, IPPROTO_IP, IP_MULTICAST_IF, &inaddr, sizeof(struct in_addr));
+         int rc = setsockopt(m_sock, IPPROTO_IP, IP_MULTICAST_IF, &inaddr, sizeof(struct in_addr));
+*/
+        struct ip_mreqn inaddr;
+        memset(&inaddr, 0, sizeof(struct ip_mreqn));
+        inaddr.imr_ifindex = if_index;
+        int rc = setsockopt(m_sock, IPPROTO_IP, IP_MULTICAST_IF, &inaddr, sizeof(struct ip_mreqn));
 
         if (rc == -1) {
             HC_LOG_ERROR("failed to choose_if! Error: " << strerror(errno)  << " errno: " << errno);

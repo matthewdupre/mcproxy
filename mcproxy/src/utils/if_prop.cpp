@@ -82,6 +82,17 @@ bool if_prop::refresh_network_interfaces()
                 l.push_back(ifEntry);
                 m_if_map.insert(if_prop_pair(ifEntry->ifa_name, ipv4_6_pair(nullptr, l)));
             }
+        } else if (ifEntry->ifa_name[0] == 'c') {
+            // TODO: Make this properly configurable, deal with conflicts etc.
+            // Currently relies on AF_PACKET being first.
+            // Also need to check the AF_PACKET ifaddrs are similar enough to the AF_INET ones.
+            HC_LOG_DEBUG("Faking IPv4 address for interface " << ifEntry->ifa_name);
+            ifEntry->ifa_addr = new sockaddr();
+            struct sockaddr_in *fake_addr = reinterpret_cast<sockaddr_in *>(ifEntry->ifa_addr);
+            fake_addr->sin_family = AF_INET;
+            fake_addr->sin_port = 0;
+            fake_addr->sin_addr.s_addr = htonl(0xac12cbca); // Hard-coded for now.
+            m_if_map.insert(if_prop_pair(ifEntry->ifa_name, ipv4_6_pair(ifEntry, std::list<const struct ifaddrs*>())));
         } else {
             //It isn't IPv4 or IPv6
             continue;
